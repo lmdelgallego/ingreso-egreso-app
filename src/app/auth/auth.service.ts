@@ -7,6 +7,11 @@ import { map } from 'rxjs/Operators';
 import Swal from 'sweetalert2';
 import { User } from './user.model';
 import { AngularFirestore } from '@angular/fire/firestore';
+import { Store } from '@ngrx/store';
+import { AppState } from '../app.reducer';
+import { ActivarLoadingAction, DesactivarLoadingAction } from '../shared/ui.actions';
+import { SetUserAction } from './auth.actions';
+import { Subscription } from 'rxjs';
 
 
 @Injectable({
@@ -14,17 +19,31 @@ import { AngularFirestore } from '@angular/fire/firestore';
 })
 export class AuthService {
 
+  private userSubscription: Subscription = new Subscription();
+
   constructor( private afAuth: AngularFireAuth,
                 private router: Router,
-                private afDB: AngularFirestore ) { }
+                private afDB: AngularFirestore,
+                private store: Store<AppState> ) { }
 
   initAuthListener() {
     this.afAuth.authState.subscribe( (fbUser: firebase.User) => {
-      console.log(fbUser);
+      if (fbUser) {
+        this.userSubscription = this.afDB.doc(`${fbUser.uid}/usuario`).valueChanges()
+        .subscribe( (userObj: any) => {
+          const newUser = new User(userObj);
+          this.store.dispatch( new SetUserAction(newUser));
+        });
+      } else {
+        this.userSubscription.unsubscribe();
+      }
     });
   }
 
   crearUsuario( nombre: string, email: string, password: string) {
+
+    this.store.dispatch( new ActivarLoadingAction() );
+
     this.afAuth.auth
     .createUserWithEmailAndPassword(email, password)
     .then( resp => {
@@ -44,10 +63,14 @@ export class AuthService {
     .catch( error => {
       console.error(error);
       Swal.fire('Error en el registro de usuario', error.message, 'error');
+    })
+    .finally( () => {
+      this.store.dispatch( new DesactivarLoadingAction() );
     });
   }
 
   logIn( email: string, password: string) {
+    this.store.dispatch( new ActivarLoadingAction() );
     this.afAuth.auth
     .signInWithEmailAndPassword(email, password)
     .then( resp => {
@@ -55,7 +78,9 @@ export class AuthService {
     })
     .catch( error => {
       Swal.fire('Error en el login', error.message, 'error');
-    });
+    })
+    .finally(() => this.store.dispatch(new DesactivarLoadingAction() ));
+
   }
 
   logOut() {
