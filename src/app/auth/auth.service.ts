@@ -2,6 +2,7 @@ import { Injectable } from '@angular/core';
 import { AngularFireAuth } from '@angular/fire/auth';
 import { Router } from '@angular/router';
 import * as firebase from 'firebase';
+import { map } from 'rxjs/Operators';
 
 import Swal from 'sweetalert2';
 
@@ -48,6 +49,18 @@ export class AuthService {
     .then( resp => {
       this.router.navigate(['/login']);
     } );
+  }
+
+  isAuth() {
+    return this.afAuth.authState
+    .pipe(
+      map( fbUser => {
+        if ( fbUser == null) {
+          this.router.navigate(['/login']);
+        }
+        return fbUser != null;
+      })
+    );
   }
 
 }
